@@ -1,36 +1,138 @@
 use std::io;
+use std::io::BufRead;
+
+#[cfg_attr(test, derive(PartialEq, Debug))]
+enum Relation {
+    Inside,
+    Border,
+    Outside,
+}
+
+use Relation::*;
+
+enum Error {
+    BadFormat,
+    OutOfRange,
+    EmptyString,
+}
+
+fn distance_relation(distance: i32, border: i32) -> Relation {
+    use std::cmp::Ordering::*;
+
+    match distance.cmp(&border) {
+        Less => Inside,
+        Equal => Border,
+        Greater => Outside,
+    }
+}
+
+fn box_calc(x: i32, y: i32, border: i32) -> Relation {
+    let x = x.abs();
+    let y = y.abs();
+    let dist = if y > x { y } else { x };
+
+    distance_relation(dist, border)
+}
+
+fn radii_calc(x: i32, y: i32, border: i32) -> Relation {
+    distance_relation(x * x + y * y, border * border)
+}
+
+fn partition(
+    lo: impl Fn(i32, i32, i32) -> Relation,
+    h1: impl Fn(i32, i32, i32) -> Relation,
+    x: i32,
+    y: i32,
+) -> Relation {
+    match lo(x, y, 10) {
+        Border => Border,
+        Inside => Outside,
+        Outside => match h1(x, y, 20) {
+            Border => Border,
+            Inside => Inside,
+            Outside => Outside,
+        },
+    }
+}
+
+fn point_location(x: i32, y: i32) -> Relation {
+    if x > 0 {
+        if y > 0 {
+            partition(box_calc, radii_calc, x, y)
+        } else {
+            partition(radii_calc, radii_calc, x, y)
+        }
+    } else {
+        if y > 0 {
+            partition(radii_calc, box_calc, x, y)
+        } else {
+            partition(box_calc, box_calc, x, y)
+        }
+    }
+}
+
+fn parse_coord(coord: &str) -> Result<i32, Error> {
+    match coord.parse() {
+        Ok(coord @ -100..=100) => Ok(coord),
+        Ok(_) => Err(Error::OutOfRange),
+        Err(_) => Err(Error::BadFormat),
+    }
+}
+
+fn set_point_location(line: String) -> Result<Relation, Error> {
+    let mut iter = line.split_ascii_whitespace();
+    let x = iter.next().ok_or(Error::EmptyString)?;
+    let x = parse_coord(x)?;
+
+    let y = iter.next().ok_or(Error::EmptyString)?;
+    let y = parse_coord(y)?;
+
+    match iter.next() {
+        Some(_) => Err(Error::BadFormat),
+        None => Ok(point_location(x, y)),
+    }
+}
+
+fn format_result(result: Result<Relation, Error>) -> &'static str {
+    match result {
+        Ok(Outside) => "outside",
+        Ok(Inside) => "inside",
+        Ok(Border) => "border",
+        Err(Error::BadFormat) => "error: bad format",
+        Err(Error::EmptyString) => "error: empty string",
+        Err(Error::OutOfRange) => "error: out of range",
+    }
+}
 
 fn main() {
     println!("Введите координаты!");
-    let mut point = String::new();
+    let mut line = String::new();
     io::stdin()
-            .read_line(&mut point)
-            .expect("Failed to read line");
+        .read_line(&mut line)
+        .expect("Failed to read line");
 
-    let mut iter = point.split_ascii_whitespace();
-    let mut arr:[i32;2] = [0, 0];
-    let mut i = 0;
-    loop {
-        arr[i] = match iter.next() {
-            Some(str) => match str.trim().parse() {
-                Ok(num) => num,
-                Err(_) => {
-                    println!("Не верный формат координат!");
-                    break;
-                },
-            },
-            None => (
-                if i < 1 {
-                    println!("Не верный формат координат!");
-                    break;
-                } else {
-                    break;
-                }
-            ),
-        };
-        println!("{}", arr[i]);
-        i = i + 1;
-    }   
-    println!("x = {}, y = {}", arr[0], arr[1]);
-    //println!("Point = {}",point);
+    let res = set_point_location(line);
+    println!("{}", format_result(res));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_radii() {
+        assert_eq!(radii_calc(-2, 4, 5), Inside);
+        assert_eq!(radii_calc(-3, -4, 5), Border);
+        assert_eq!(radii_calc(30, 40, 20), Outside);
+    }
+    #[test]
+    fn check_box() {
+        assert_eq!(box_calc(-2, 4, 5), Inside);
+        assert_eq!(box_calc(-3, -5, 5), Border);
+        assert_eq!(box_calc(30, 40, 20), Outside);
+    }
+    #[test]
+    fn check_figure() {
+        assert_eq!(point_location(-2, 4), Outside);
+    }
 }
