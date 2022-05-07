@@ -14,6 +14,8 @@ enum Error {
     BadFormat,
     OutOfRange,
     EmptyString,
+    OneCoord,
+    TooMuchCoords,
 }
 
 fn distance_relation(distance: i32, border: i32) -> Relation {
@@ -56,6 +58,7 @@ fn partition(
 }
 
 fn point_location(x: i32, y: i32) -> Relation {
+    #[allow(clippy::collapsible_else_if)]
     if x > 0 {
         if y > 0 {
             partition(box_calc, radii_calc, x, y)
@@ -84,11 +87,11 @@ fn set_point_location(line: String) -> Result<Relation, Error> {
     let x = iter.next().ok_or(Error::EmptyString)?;
     let x = parse_coord(x)?;
 
-    let y = iter.next().ok_or(Error::EmptyString)?;
+    let y = iter.next().ok_or(Error::OneCoord)?;
     let y = parse_coord(y)?;
 
     match iter.next() {
-        Some(_) => Err(Error::BadFormat),
+        Some(_) => Err(Error::TooMuchCoords),
         None => Ok(point_location(x, y)),
     }
 }
@@ -101,18 +104,17 @@ fn format_result(result: Result<Relation, Error>) -> &'static str {
         Err(Error::BadFormat) => "error: bad format",
         Err(Error::EmptyString) => "error: empty string",
         Err(Error::OutOfRange) => "error: out of range",
+        Err(Error::OneCoord) => "error: one coord",
+        Err(Error::TooMuchCoords) => "error: too much coords",
     }
 }
 
 fn main() {
-    println!("Введите координаты!");
-    let mut line = String::new();
-    io::stdin()
-        .read_line(&mut line)
-        .expect("Failed to read line");
-
-    let res = set_point_location(line);
-    println!("{}", format_result(res));
+    for line in io::stdin().lock().lines() {
+        let line = line.expect("Can't read line from STDIN");
+        let res = set_point_location(line);
+        println!("{}", format_result(res));
+    }
 }
 
 #[cfg(test)]
