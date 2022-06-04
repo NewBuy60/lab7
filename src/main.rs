@@ -1,5 +1,6 @@
 use std::io;
 use std::io::BufRead;
+use warp::Filter;
 
 #[cfg_attr(test, derive(PartialEq, Debug))]
 enum Relation {
@@ -108,13 +109,20 @@ fn format_result(result: Result<Relation, Error>) -> &'static str {
         Err(Error::TooMuchCoords) => "error: too much coords",
     }
 }
-
-fn main() {
+#[tokio::main]
+async fn main() {
+    let hello = warp::path!("hello" / String)
+        .map(|name| format!("Hello, {}!", name));
+    let routes = warp::any().map(|| "Hello, World!");
     for line in io::stdin().lock().lines() {
         let line = line.expect("Can't read line from STDIN");
         let res = set_point_location(line);
-        println!("{}", format_result(res));
+        let result = format_result(res);
+        //println!("{}", format_result(res));
     }
+    warp::serve(result)
+        .run(([127, 0, 0, 1], 3030))
+        .await;
 }
 
 #[cfg(test)]
